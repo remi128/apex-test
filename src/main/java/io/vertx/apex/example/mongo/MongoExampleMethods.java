@@ -25,7 +25,14 @@ public class MongoExampleMethods {
 		// TODO Auto-generated constructor stub
 	}
 
-    public void example0_1(Vertx vertx, JsonObject config) {
+	public void doAll(Vertx vertx, JsonObject config){
+		deployVerticle(vertx, config);
+		example0_1_1(vertx, config );
+		
+		
+	} 
+	
+    public void deployVerticle(Vertx vertx, JsonObject config) {
 
         // Deploy service - can be anywhere on your network
         DeploymentOptions options = new DeploymentOptions().setConfig(config);
@@ -33,9 +40,10 @@ public class MongoExampleMethods {
         vertx.deployVerticle("io.vertx:mongo-service", options, res -> {
 
           if (res.succeeded()) {
-            // Deployed ok
+            System.out.println( "deployment successfull" );
           } else {
-            // Failed to deploy
+              System.out.println( "deployment failed: " + res.result()  );
+              res.cause().printStackTrace();
           }
 
         });
@@ -69,10 +77,13 @@ public class MongoExampleMethods {
 
         // Now do stuff with it:
 
-        proxy.count("books", new JsonObject(), res -> {
-
-          // ...
-
+        proxy.count(  "books", new JsonObject(), res -> {
+            if (res.succeeded()) {
+                System.out.println( "count books: " + res.result() );
+              } else {
+                  System.out.println( "deployment failed: " + res.result()  );
+                  res.cause().printStackTrace();
+              }
         });
       }
 

@@ -7,6 +7,7 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.AsyncResultHandler;
 import io.vertx.core.Handler;
+import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.mongo.MongoService;
@@ -27,6 +28,7 @@ public class MongoConsument extends AbstractVerticle {
 	@Override
 	  public void start() {
 	    saveObject();
+	    countBooks();
 	  }
 	
 	private void saveObject(){
@@ -45,6 +47,24 @@ public class MongoConsument extends AbstractVerticle {
 		});		
 		
 	}
+	
+    public void countBooks() {
+
+        MongoService proxy = MongoService.createEventBusProxy(vertx, "vertx.mongo");
+
+        // Now do stuff with it:
+
+        proxy.count(  "books", new JsonObject(), res -> {
+            if (res.succeeded()) {
+                System.out.println( "count books: " + res.result() );
+              } else {
+                  System.out.println( "deployment failed: " + res.result()  );
+                  res.cause().printStackTrace();
+              }
+        });
+      }
+
+	
 	
 	private void saveByService(){
         MongoService proxy = MongoService.createEventBusProxy(vertx, "vertx.mongo");
