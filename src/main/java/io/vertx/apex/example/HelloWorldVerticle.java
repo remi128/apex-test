@@ -19,9 +19,7 @@ package io.vertx.apex.example;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerOptions;
-import io.vertx.core.logging.Logger;
-import io.vertx.ext.apex.core.Router;
-import io.vertx.test.core.VertxTestBase;
+import io.vertx.ext.apex.Router;
 
 /**
  * @author <a href="http://tfox.org">Tim Fox</a>

@@ -24,9 +24,9 @@ import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.apex.core.BodyHandler;
-import io.vertx.ext.apex.core.Router;
-import io.vertx.ext.apex.core.RoutingContext;
+import io.vertx.ext.apex.Router;
+import io.vertx.ext.apex.RoutingContext;
+import io.vertx.ext.apex.handler.BodyHandler;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -59,7 +59,7 @@ public class SimpleREST  {
 
     Router router = Router.router(vertx);
 
-    router.route().handler(   BodyHandler.bodyHandler() );
+    router.route().handler(   BodyHandler.create() );
     
     router.route( HttpMethod.GET, "/products/:productID").handler(that::handleGetProduct);
     router.route( HttpMethod.PUT, "/products/:productID").handler(that::handleAddProduct);

@@ -14,7 +14,7 @@ public class HttpVerticleTest extends VertxTestBase {
     @Before
     public void setUpTest() {
         vertx.deployVerticle(HttpVerticle.class.getName());
-        waitUntil(() -> vertx.deployments().size() == 1);
+        waitUntil(() -> vertx.deploymentIDs().size() == 1);
     }
     
     @Test
