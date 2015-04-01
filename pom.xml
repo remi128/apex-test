@@ -98,38 +98,6 @@
 	  <version>${vertx.version}</version>
 	</dependency>	
 	
-<!-- 	<dependency> -->
-<!-- 	  <groupId>io.vertx</groupId> -->
-<!-- 	  <artifactId>ext-mongo</artifactId> -->
-<!-- 	  <version>${vertx.version}</version> -->
-<!-- 	  <exclusions> -->
-<!-- 	    <exclusion> -->
-<!--           <groupId>org.mongodb</groupId> -->
-<!--           <artifactId>driver-async</artifactId> -->
-<!--         </exclusion> -->
-<!-- 	    <exclusion> -->
-<!--           <groupId>io.vertx</groupId> -->
-<!--           <artifactId>vertx-core</artifactId> -->
-<!--         </exclusion> -->
-<!-- 	  </exclusions> -->
-<!-- 	</dependency> -->
-	
-	<dependency>
-	  <groupId>io.vertx</groupId>
-	  <artifactId>service-proxy</artifactId>
-	  <version>${vertx.version}</version>
-	  <exclusions>
-	    <exclusion>
-          <groupId>org.mongodb</groupId>
-          <artifactId>driver-async</artifactId>
-        </exclusion>
-	    <exclusion>
-          <groupId>io.vertx</groupId>
-          <artifactId>vertx-core</artifactId>
-        </exclusion>
-	  </exclusions>
-	</dependency>	
-	
 	<dependency>
 	  <groupId>io.vertx</groupId>
 	  <artifactId>vertx-mongo-service</artifactId>
