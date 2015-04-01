@@ -1,6 +1,7 @@
 package io.vertx.ext.auth.mongo;
 
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.test.mongo.bak.MongoBaseTest;
 import io.vertx.ext.mongo.MongoService;
 
 import java.util.concurrent.CountDownLatch;
