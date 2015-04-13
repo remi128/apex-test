@@ -128,12 +128,7 @@ public class HelloWorldApexVerticle extends AbstractVerticle {
   private void installTemplateHandler(Router router) {
     ThymeleafTemplateEngineImpl engine = new ThymeleafTemplateEngineImpl();
     engine.setMode(ThymeleafTemplateEngine.DEFAULT_TEMPLATE_MODE);
-
-    engine.getThymeleafTemplateEngine().getTemplateResolvers().forEach(resolver -> {
-
-    });
-
-    //    engine.setCacheable(false);
+    engine.getTemplateResolver().setCacheable(false);
     TemplateHandler th = TemplateHandler.create(engine);
 
     router.route("/dynamic/").handler(th);

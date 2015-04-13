@@ -4,6 +4,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.spi.AuthProvider;
 import io.vertx.ext.mongo.MongoService;
@@ -35,6 +36,11 @@ public class MongoAuthProvider implements AuthProvider {
    * The property name to be used to set the name of the field, where the password is stored inside
    */
   public static final String PROPERTY_PASSWORD_FIELD            = "passwordField";
+
+  /**
+   * The property name to be used to set the name of the field, where the roles are stored inside
+   */
+  public static final String PROPERTY_ROLE_FIELD                = "roleField";
 
   /**
    * The property name to be used to set the name of the field, where the username for the credentials is stored inside
@@ -84,6 +90,12 @@ public class MongoAuthProvider implements AuthProvider {
   public static final String DEFAULT_PASSWORD_FIELD             = "password";
 
   /**
+   * The default name of the property for the roles, like it is stored in mongodb. Roles are expected to be saved as
+   * JsonArray
+   */
+  public static final String DEFAULT_ROLE_FIELD                 = "roles";
+
+  /**
    * The default name of the property for the username, like it is transported in credentials by method
    * {@link #init(JsonObject)}
    */
@@ -117,6 +129,8 @@ public class MongoAuthProvider implements AuthProvider {
   private MongoService mongoService;
   private String       usernameField            = DEFAULT_USERNAME_FIELD;
   private String       passwordField            = DEFAULT_PASSWORD_FIELD;
+  private String       roleField                = DEFAULT_ROLE_FIELD;
+
   private String       usernameCredentialField  = DEFAULT_CREDENTIAL_USERNAME_FIELD;
   private String       passwordCredentialField  = DEFAULT_CREDENTIAL_PASSWORD_FIELD;
   private String       saltField                = DEFAULT_SALT_FIELD;
@@ -199,6 +213,18 @@ public class MongoAuthProvider implements AuthProvider {
   }
 
   /**
+   * Set the name of the field to be used for the roles. Defaults to DEFAULT_ROLE_FIELD. Roles are expected to be saved
+   * as JsonArray
+   * 
+   * @param fieldName
+   * @return
+   */
+  public MongoAuthProvider setRoleField(String fieldName) {
+    this.roleField = fieldName;
+    return this;
+  }
+
+  /**
    * Set the name of the field to be used for the username. Defaults to DEFAULT_CREDENTIAL_USERNAME_FIELD
    * 
    * @param fieldName
@@ -277,6 +303,11 @@ public class MongoAuthProvider implements AuthProvider {
       setPasswordField(passwordField);
     }
 
+    String roleField = config.getString(PROPERTY_ROLE_FIELD);
+    if (roleField != null) {
+      setRoleField(roleField);
+    }
+
     String usernameCredField = config.getString(PROPERTY_CREDENTIAL_USERNAME_FIELD);
     if (usernameCredField != null) {
       setUsernameCredentialField(usernameCredField);
@@ -297,10 +328,11 @@ public class MongoAuthProvider implements AuthProvider {
       setSaltStyle(SaltStyle.valueOf(saltstyle));
     }
 
-    boolean permissionsLookupEnabled = config.getBoolean(PROPERTY_PERMISSIONLOOKUP_ENABLED, false);
+    boolean permissionsLookupEnabled = config.getBoolean(PROPERTY_PERMISSIONLOOKUP_ENABLED,
+        this.permissionsLookupEnabled);
     setPermissionsLookupEnabled(permissionsLookupEnabled);
 
-    boolean usernameMustUnique = config.getBoolean(PROPERTY_USERNAME_UNIQUE, true);
+    boolean usernameMustUnique = config.getBoolean(PROPERTY_USERNAME_UNIQUE, this.usernameMustUnique);
     setUsernameMustUnique(usernameMustUnique);
 
   }
@@ -321,12 +353,8 @@ public class MongoAuthProvider implements AuthProvider {
     AuthToken token = new AuthToken(username, password);
 
     JsonObject query = createQuery(username);
-    InternalHandler handler = new InternalHandler(token);
+    InternalHandler handler = new InternalHandler(token, resultHandler);
     mongoService.find(this.collectionName, query, handler);
-    if (handler.result != null)
-      resultHandler.handle(Future.succeededFuture(handler.result));
-    else
-      resultHandler.handle(Future.failedFuture(handler.exception));
   }
 
   /*
@@ -335,6 +363,12 @@ public class MongoAuthProvider implements AuthProvider {
    */
   @Override
   public void hasRole(Object principal, String role, Handler<AsyncResult<Boolean>> resultHandler) {
+    JsonArray roles = readRoles((JsonObject) principal);
+    resultHandler.handle(Future.succeededFuture(roles != null && roles.contains(role)));
+  }
+
+  protected JsonArray readRoles(JsonObject principal) {
+    return principal.getJsonArray(this.roleField);
   }
 
   /*
@@ -344,7 +378,7 @@ public class MongoAuthProvider implements AuthProvider {
   @Override
   public void hasPermission(Object principal, String permission, Handler<AsyncResult<Boolean>> resultHandler) {
     if (permissionsLookupEnabled) {
-      throw new UnsupportedOperationException();
+      throw new UnsupportedOperationException("permission lookup is not yet supported");
     }
   }
 
@@ -359,79 +393,80 @@ public class MongoAuthProvider implements AuthProvider {
   }
 
   /**
-   * Examine the selection of found users and return one, if password is fitting,
-   * 
-   * @param resultList
-   * @param username
-   * @return
-   */
-  private JsonObject handleSelection(AsyncResult<List<JsonObject>> resultList, AuthToken authToken)
-      throws AuthenticationException {
-    if (usernameMustUnique && resultList.result().size() > 1)
-      throw new AuthenticationException("More than one user row found for user [" + authToken.username
-          + "]. Usernames must be unique.");
-    JsonObject principal = null;
-    for (JsonObject json : resultList.result()) {
-      if (handleObject(json, authToken) && principal != null)
-        throw new AuthenticationException("Duplicate account [" + authToken.username + "]");
-      principal = json;
-    }
-    if (principal == null)
-      throw new AuthenticationException("No account found for user [" + authToken.username + "]");
-    return principal;
-  }
-
-  /**
-   * Examine the given user object. Returns true, if object fits the given authentication
-   * 
-   * @param userObject
-   * @param authToken
-   * @return
-   * @throws AuthenticationException
-   */
-  private boolean handleObject(JsonObject userObject, AuthToken authToken) throws AuthenticationException {
-    String password = getPasswordForUser(userObject);
-    return password != null && password.equals(authToken.password);
-  }
-
-  private String getPasswordForUser(JsonObject userObject) {
-    switch (saltStyle) {
-    case NO_SALT:
-      return userObject.getString(passwordField);
-
-    default:
-      throw new UnsupportedOperationException("Not implemented yet, saltstyle " + saltStyle);
-    }
-  }
-
-  protected String getSaltForUser(String username) {
-    return username;
-  }
-
-  /**
    * Handler for executing the query on Mongo.
    */
   class InternalHandler implements Handler<AsyncResult<List<JsonObject>>> {
-    JsonObject result = null;
-    Throwable  exception;
+    Handler<AsyncResult<Object>> parentResultHandler;
 
-    AuthToken  authToken;
+    AuthToken                    authToken;
 
-    InternalHandler(AuthToken authToken) {
+    InternalHandler(AuthToken authToken, Handler<AsyncResult<Object>> parentResultHandler) {
       this.authToken = authToken;
+      this.parentResultHandler = parentResultHandler;
     }
 
     @Override
     public void handle(AsyncResult<List<JsonObject>> res) {
       try {
         if (res.succeeded()) {
-          result = handleSelection(res, authToken);
+          parentResultHandler.handle(Future.succeededFuture(handleSelection(res, authToken)));
         } else {
-          exception = res.cause();
+          parentResultHandler.handle(Future.failedFuture(res.cause()));
         }
       } catch (Throwable e) {
-        exception = e;
+        parentResultHandler.handle(Future.failedFuture(e));
       }
+
+    }
+
+    /**
+     * Examine the selection of found users and return one, if password is fitting,
+     * 
+     * @param resultList
+     * @param username
+     * @return
+     */
+    private JsonObject handleSelection(AsyncResult<List<JsonObject>> resultList, AuthToken authToken)
+        throws AuthenticationException {
+      if (usernameMustUnique && resultList.result().size() > 1)
+        throw new AuthenticationException("More than one user row found for user [" + authToken.username
+            + "]. Usernames must be unique.");
+      JsonObject principal = null;
+      for (JsonObject json : resultList.result()) {
+        if (handleObject(json, authToken) && principal != null)
+          throw new AuthenticationException("Duplicate account [" + authToken.username + "]");
+        principal = json;
+      }
+      if (principal == null)
+        throw new AuthenticationException("No account found for user [" + authToken.username + "]");
+      return principal;
+    }
+
+    /**
+     * Examine the given user object. Returns true, if object fits the given authentication
+     * 
+     * @param userObject
+     * @param authToken
+     * @return
+     * @throws AuthenticationException
+     */
+    private boolean handleObject(JsonObject userObject, AuthToken authToken) throws AuthenticationException {
+      String password = getPasswordForUser(userObject);
+      return password != null && password.equals(authToken.password);
+    }
+
+    private String getPasswordForUser(JsonObject userObject) {
+      switch (saltStyle) {
+      case NO_SALT:
+        return userObject.getString(passwordField);
+
+      default:
+        throw new UnsupportedOperationException("Not implemented yet, saltstyle " + saltStyle);
+      }
+    }
+
+    protected String getSaltForUser(String username) {
+      return username;
     }
 
   }
