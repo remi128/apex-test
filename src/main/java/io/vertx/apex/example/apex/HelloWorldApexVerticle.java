@@ -20,11 +20,7 @@ import io.vertx.core.logging.impl.LoggerFactory;
 import io.vertx.ext.apex.Route;
 import io.vertx.ext.apex.Router;
 import io.vertx.ext.apex.RoutingContext;
-import io.vertx.ext.apex.handler.AuthHandler;
-import io.vertx.ext.apex.handler.BodyHandler;
 import io.vertx.ext.apex.handler.CookieHandler;
-import io.vertx.ext.apex.handler.FormLoginHandler;
-import io.vertx.ext.apex.handler.RedirectAuthHandler;
 import io.vertx.ext.apex.handler.SessionHandler;
 import io.vertx.ext.apex.handler.StaticHandler;
 import io.vertx.ext.apex.handler.TemplateHandler;
@@ -34,9 +30,14 @@ import io.vertx.ext.apex.sstore.SessionStore;
 import io.vertx.ext.apex.templ.ThymeleafTemplateEngine;
 import io.vertx.ext.apex.templ.impl.ThymeleafTemplateEngineImpl;
 import io.vertx.ext.auth.AuthService;
-import io.vertx.ext.auth.shiro.PropertiesAuthRealmConstants;
-import io.vertx.ext.auth.shiro.impl.MongoAuthRealmImpl;
-import io.vertx.ext.auth.shiro.impl.ShiroAuthServiceImpl;
+import io.vertx.ext.auth.mongo.MongoAuthService;
+import io.vertx.ext.mongo.MongoService;
+
+import java.util.Set;
+
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.templateresolver.ITemplateResolver;
+import org.thymeleaf.templateresolver.TemplateResolver;
 
 /**
  * @author <a href="http://tfox.org">Tim Fox</a>
@@ -76,39 +77,49 @@ public class HelloWorldApexVerticle extends AbstractVerticle {
    * @param router
    */
   private void installAuth(Router router) {
-    JsonObject config = new JsonObject();
-    config.put(PropertiesAuthRealmConstants.PROPERTIES_PROPS_PATH_FIELD, "classpath:test-auth.properties");
+    initAuthService();
+    //    AuthHandler redirectAuthHandler = RedirectAuthHandler.create(authService, "/static/loginpage.html");
+    //
+    //    // All requests to paths starting with '/private/' will be protected
+    //    router.route("/private/*").handler(redirectAuthHandler);
+    //
+    //    // Handle the actual login
+    //    BodyHandler bh = BodyHandler.create();
+    //    router.route("/login").handler(bh);
+    //    router.route("/login").handler(FormLoginHandler.create(authService));
+    //
+    //    router.route("/private/somepath").handler(routingContext -> {
+    //
+    //      // This will require a login
+    //
+    //        // This will have the value true
+    //        boolean isLoggedIn = routingContext.session().isLoggedIn();
+    //        System.out.println("logged in: " + isLoggedIn);
+    //        routingContext.response().putHeader("content-type", "text/html")
+    //            .end("user: " + routingContext.session().getLoginID() + "<br/><a href='logout'>logout</a>");
+    //      });
+    //
+    //    router.route("/private/logout").handler(routingContext -> {
+    //      routingContext.session().logout();
+    //      routingContext.response().end("logged out; user: " + routingContext.session().getLoginID());
+    //    });
 
-    // AuthService authService = ShiroAuthService.create(vertx, ShiroAuthRealmType.PROPERTIES, config);
+  }
 
-    MongoAuthRealmImpl mongoRealm = new MongoAuthRealmImpl(vertx);
-    AuthService authService = new ShiroAuthServiceImpl(vertx, mongoRealm, config);
+  AuthService authService = null;
 
-    AuthHandler redirectAuthHandler = RedirectAuthHandler.create(authService, "/static/loginpage.html");
-
-    // All requests to paths starting with '/private/' will be protected
-    router.route("/private/").handler(redirectAuthHandler);
-
-    // Handle the actual login
-    BodyHandler bh = BodyHandler.create();
-    router.route("/login").handler(bh);
-    router.route("/login").handler(FormLoginHandler.create(authService));
-
-    router.route("/private/somepath").handler(routingContext -> {
-
-      // This will require a login
-
-        // This will have the value true
-        boolean isLoggedIn = routingContext.session().isLoggedIn();
-        System.out.println("logged in: " + isLoggedIn);
-        routingContext.response().putHeader("content-type", "text/html")
-            .end("user: " + routingContext.session().getLoginID() + "<br/><a href='logout'>logout</a>");
-      });
-
-    router.route("/private/logout").handler(routingContext -> {
-      routingContext.session().logout();
-      routingContext.response().end("logged out; user: " + routingContext.session().getLoginID());
-    });
+  public void initAuthService() {
+    vertx.fileSystem().readFile("/data/workspace/vertx/apex-test/src/main/resources/io.vertx-vertx-mongo-service.json",
+        res -> {
+          if (res.succeeded()) {
+            JsonObject config = new JsonObject(res.result().toString());
+            MongoService mongoService = MongoService.create(vertx, config);
+            mongoService.start();
+            authService = new MongoAuthService(vertx, mongoService, new JsonObject());
+          } else {
+            throw new RuntimeException(res.cause());
+          }
+        });
 
   }
 
@@ -128,10 +139,14 @@ public class HelloWorldApexVerticle extends AbstractVerticle {
   private void installTemplateHandler(Router router) {
     ThymeleafTemplateEngineImpl engine = new ThymeleafTemplateEngineImpl();
     engine.setMode(ThymeleafTemplateEngine.DEFAULT_TEMPLATE_MODE);
-    engine.getTemplateResolver().setCacheable(false);
+    TemplateEngine te = engine.getThymeleafTemplateEngine();
+    Set<ITemplateResolver> trs = te.getTemplateResolvers();
+    for (ITemplateResolver tr : trs) {
+      ((TemplateResolver) tr).setCacheable(false);
+    }
     TemplateHandler th = TemplateHandler.create(engine);
 
-    router.route("/dynamic/").handler(th);
+    router.route("/dynamic/*").handler(th);
   }
 
   /**
@@ -142,7 +157,7 @@ public class HelloWorldApexVerticle extends AbstractVerticle {
     StaticHandler sh = StaticHandler.create();
     sh.setCachingEnabled(false);
     sh.setCacheEntryTimeout(1);
-    router.route("/static/").handler(sh);
+    router.route("/static/*").handler(sh);
   }
 
   private void addSessionTestRoutes(Router router) {
